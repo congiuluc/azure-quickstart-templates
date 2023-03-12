@@ -35,32 +35,34 @@ echo $SITENAME
 
 New-Item c:\Temp -type directory
 
+[Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
+
 # Download and install JDK and Tomcat
 echo "Downloading jdk10..."
-$source = "http://download.oracle.com/otn-pub/java/jdk/10.0.1+10/fb4372174a714e6b8c52526dc134031e/jdk-10.0.1_windows-x64_bin.exe"
-$destination = "C:\Temp\jdk-10.0.1_windows-x64_bin.exe"
+$source = "https://download.oracle.com/java/19/latest/jdk-19_windows-x64_bin.exe"
+$destination = "C:\Temp\jdk-19_windows-x64_bin.exe"
 $client = new-object System.Net.WebClient 
 $cookie = "oraclelicense=accept-securebackup-cookie"
 $client.Headers.Add([System.Net.HttpRequestHeader]::Cookie, $cookie) 
 $client.DownloadFile($source,$destination)
 
 echo "Downloading tomcat8..."
-$source = "http://apache.mirrors.ionfish.org/tomcat/tomcat-8/v8.5.31/bin/apache-tomcat-8.5.31-windows-x64.zip"
-$destination = "C:\Temp\apache-tomcat-8.5.31-windows-x64.zip"
+$source = "https://dlcdn.apache.org/tomcat/tomcat-8/v8.5.87/bin/apache-tomcat-8.5.87-windows-x64.zip"
+$destination = "C:\Temp\apache-tomcat-8.5.87-windows-x64.zip"
 $client = new-object System.Net.WebClient 
 $client.DownloadFile($source,$destination)
 
 echo "Installing jdk8..."
-$proc1 = Start-Process -FilePath "C:\Temp\jdk-10.0.1_windows-x64_bin.exe" -ArgumentList "/s REBOOT=ReallySuppress" -Wait -PassThru
+$proc1 = Start-Process -FilePath "C:\Temp\jdk-19_windows-x64_bin.exe" -ArgumentList "/s REBOOT=ReallySuppress" -Wait -PassThru
 $proc1.waitForExit()
 
 echo "Setting environment veriable..."
-$JDK_PATH="-10.0.1"
+$JDK_PATH="-19"
 [System.Environment]::SetEnvironmentVariable("JAVA_HOME", "c:\Program Files\Java\jdk$JDK_PATH", "Machine")
 [System.Environment]::SetEnvironmentVariable("PATH", $Env:Path + ";c:\Program Files\Java\jdk$JDK_PATH\bin", "Machine")
 
 echo "Unzip tomcat8"
-Unzip "C:\Temp\apache-tomcat-8.5.31-windows-x64.zip" "C:\"
+Unzip "C:\Temp\apache-tomcat-8.5.87-windows-x64.zip" "C:\"
 
 # Set up SSL access
 echo "Generating certificate..."
@@ -68,8 +70,8 @@ $SSLKEYPASSWORD=GET-Password -length 12 -sourcedata $alphabet
 cd "C:\Program Files\Java\jdk$JDK_PATH\bin\"
 .\keytool.exe -genkey -alias tomcat -keyalg RSA -keystore c:\Temp\server.keystore -keysize 2048 -storepass $SSLKEYPASSWORD -keypass $SSLKEYPASSWORD -dname "cn=$SITENAME, ou=shibbolethOU, o=shibbolethO, c=US"
 
-$filedata = [IO.File]::ReadAllText("C:\apache-tomcat-8.5.31\conf\server.xml")
-Rename-Item C:\apache-tomcat-8.5.31\conf\server.xml C:\apache-tomcat-8.5.31\conf\server-old.xml
+$filedata = [IO.File]::ReadAllText("C:\apache-tomcat-8.5.87\conf\server.xml")
+Rename-Item C:\apache-tomcat-8.5.87\conf\server.xml C:\apache-tomcat-8.5.87\conf\server-old.xml
 $OriginalString='redirectPort="8443"'
 $ReplceString='redirectPort="8443" address="0.0.0.0"'
 $filedata=$filedata.Replace($OriginalString,$ReplceString)
@@ -77,17 +79,17 @@ $filedata=$filedata.Replace($OriginalString,$ReplceString)
 $OriginalString="<!-- Define an AJP 1.3 Connector on port 8009 -->"
 $ReplaceWith='<Connector port="8443" protocol="org.apache.coyote.http11.Http11Protocol" SSLEnabled="true" maxThreads="150" scheme="https" secure="true"  clientAuth="false" sslProtocol="TLS" address="0.0.0.0" keystoreFile="C:\Temp\server.keystore"' + " keystorePass='$SSLKEYPASSWORD'/>"
 $filedata=$filedata.Replace($OriginalString,$ReplaceWith)
-[IO.File]::WriteAllText("C:\apache-tomcat-8.5.31\conf\server.xml", $filedata.TrimEnd())
+[IO.File]::WriteAllText("C:\apache-tomcat-8.5.87\conf\server.xml", $filedata.TrimEnd())
 
 echo "Downloading JSTL..."
-$source = "http://central.maven.org/maven2/jstl/jstl/1.2/jstl-1.2.jar"
-$destination = "C:\apache-tomcat-8.5.31\lib\jstl-1.2.jar"
+$source = "http://maven.org/maven2/jstl/jstl/1.2/jstl-1.2.jar"
+$destination = "C:\apache-tomcat-8.5.87\lib\jstl-1.2.jar"
 $client = new-object System.Net.WebClient 
 $client.DownloadFile($source,$destination)
 
 # Download and install Shibboleth IDP
 echo "Downloading Shibboleth..."
-$source = "https://shibboleth.net/downloads/identity-provider/latest/shibboleth-identity-provider-3.3.2.zip"
+$source = "https://shibboleth.net/downloads/identity-provider/archive/3.3.2/shibboleth-identity-provider-3.3.2.zip"
 $destination = "C:\Temp\shibboleth-identity-provider-3.3.2.zip"
 $client = new-object System.Net.WebClient 
 $client.DownloadFile($source,$destination)
@@ -119,7 +121,7 @@ echo "Running the shibboleth installer..."
 $filedata = [IO.File]::ReadAllText("C:\shibboleth-identity-provider-3.3.2\bin\install.bat")
 Rename-Item C:\shibboleth-identity-provider-3.3.2\bin\install.bat C:\shibboleth-identity-provider-3.3.2\bin\install-old.bat
 $OriginalString="setlocal"
-$ReplceString="setlocal`r`nset JAVA_HOME=C:\Program Files\Java\jdk-10.0.1"
+$ReplceString="setlocal`r`nset JAVA_HOME=C:\Program Files\Java\jdk-19"
 $filedata=$filedata.Replace($OriginalString,$ReplceString)
 [IO.File]::WriteAllText("C:\shibboleth-identity-provider-3.3.2\bin\install.bat", $filedata.TrimEnd())
 
@@ -147,9 +149,9 @@ $content=$content.Replace($OriginalString,$ReplceString)
 [IO.File]::WriteAllText("C:\opt\shibboleth-idp\metadata\idp-metadata.xml", $content.TrimEnd())
 
 echo "Adding application to tomcat7..."
-New-Item C:\apache-tomcat-8.5.31\conf\Catalina\localhost -type directory
+New-Item C:\apache-tomcat-8.5.87\conf\Catalina\localhost -type directory
 $appData='<Context docBase="C:\opt\shibboleth-idp\war\idp.war" privileged="true" antiresourcelocking="false" antijarlocking="false" unpackwar="false" swallowoutput="true" />'
-[IO.File]::WriteAllText("C:\apache-tomcat-8.5.31\conf\Catalina\localhost\idp.xml", $appData.TrimEnd())
+[IO.File]::WriteAllText("C:\apache-tomcat-8.5.87\conf\Catalina\localhost\idp.xml", $appData.TrimEnd())
 
 echo "allow access to public"
 $content = [IO.File]::ReadAllText("C:\opt\shibboleth-idp\conf\access-control.xml")
@@ -163,19 +165,19 @@ cmd.exe /c "netsh advfirewall firewall add rule name="Allow TCP 80,8080,8443" di
 
 # Restart Tomcat
 echo "restart tomcat"
-$filedata = [IO.File]::ReadAllText("C:\apache-tomcat-8.5.31\bin\startup.bat")
-Rename-Item C:\apache-tomcat-8.5.31\bin\startup.bat C:\apache-tomcat-8.5.31\bin\startup-old.bat
+$filedata = [IO.File]::ReadAllText("C:\apache-tomcat-8.5.87\bin\startup.bat")
+Rename-Item C:\apache-tomcat-8.5.87\bin\startup.bat C:\apache-tomcat-8.5.87\bin\startup-old.bat
 $OriginalString="setlocal"
-$ReplceString="setlocal`r`nset JAVA_HOME=C:\Program Files\Java\jdk-10.0.1"
+$ReplceString="setlocal`r`nset JAVA_HOME=C:\Program Files\Java\jdk-19"
 $filedata=$filedata.Replace($OriginalString,$ReplceString)
-[IO.File]::WriteAllText("C:\apache-tomcat-8.5.31\bin\startup.bat", $filedata.TrimEnd())
+[IO.File]::WriteAllText("C:\apache-tomcat-8.5.87\bin\startup.bat", $filedata.TrimEnd())
 
-$filedata = [IO.File]::ReadAllText("C:\apache-tomcat-8.5.31\bin\shutdown.bat")
-Rename-Item C:\apache-tomcat-8.5.31\bin\shutdown.bat C:\apache-tomcat-8.5.31\bin\shutdown-old.bat
+$filedata = [IO.File]::ReadAllText("C:\apache-tomcat-8.5.87\bin\shutdown.bat")
+Rename-Item C:\apache-tomcat-8.5.87\bin\shutdown.bat C:\apache-tomcat-8.5.87\bin\shutdown-old.bat
 $OriginalString="setlocal"
-$ReplceString="setlocal`r`nset JAVA_HOME=C:\Program Files\Java\jdk-10.0.1"
+$ReplceString="setlocal`r`nset JAVA_HOME=C:\Program Files\Java\jdk-19"
 $filedata=$filedata.Replace($OriginalString,$ReplceString)
-[IO.File]::WriteAllText("C:\apache-tomcat-8.5.31\bin\shutdown.bat", $filedata.TrimEnd())
+[IO.File]::WriteAllText("C:\apache-tomcat-8.5.87\bin\shutdown.bat", $filedata.TrimEnd())
 
-cd C:\apache-tomcat-8.5.31\bin\
+cd C:\apache-tomcat-8.5.87\bin\
 Start-Process .\startup.bat
